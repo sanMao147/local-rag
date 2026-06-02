@@ -16,11 +16,13 @@
 
 ## 功能特性
 
+- 📂 **知识库文件夹**: 将文档放入 `knowledge-base/` 目录，启动自动扫描或一键批量入库
 - 📄 **文档上传**: 支持 PDF、Markdown、TXT、Word (.docx) 拖拽上传
 - 🧠 **智能分块**: RecursiveCharacterTextSplitter 智能分割文档
 - 🔍 **语义检索**: bge-m3 向量化 + Chroma 相似度检索
 - 💬 **流式问答**: SSE 流式输出，首 Token 延迟低
 - 📚 **引用溯源**: 答案附带文档来源和相关性评分
+- 🔄 **自动去重**: 扫描时对比已有文档，跳过重复摄入
 - 🎨 **现代 UI**: 深蓝企业级设计，左右双栏布局
 
 ## 环境要求
@@ -72,36 +74,41 @@ npm run dev
 ## 项目结构
 
 ```text
+knowledge-base/                   # 知识库文件夹（放文档即用）
+├── .gitkeep
 src/
 ├── app/
 │   ├── api/
-│   │   ├── documents/          # 文档管理 API
-│   │   │   ├── upload/route.ts  # POST 上传文档
-│   │   │   └── route.ts         # GET 列表 / DELETE 删除
-│   │   ├── query/route.ts      # POST RAG 问答 (SSE)
-│   │   └── health/route.ts     # GET 健康检查
+│   │   ├── documents/            # 文档管理 API
+│   │   │   ├── upload/route.ts   # POST 上传文档
+│   │   │   ├── scan/route.ts     # POST 扫描知识库
+│   │   │   └── route.ts          # GET 列表 / DELETE 删除
+│   │   ├── knowledge-base/
+│   │   │   └── path/route.ts     # GET 返回知识库路径
+│   │   ├── query/route.ts        # POST RAG 问答 (SSE)
+│   │   └── health/route.ts       # GET 健康检查
 │   ├── layout.tsx
-│   ├── page.tsx                 # 主页面
+│   ├── page.tsx                  # 主页面
 │   └── globals.css
 ├── components/
-│   ├── chat-panel.tsx           # 对话面板
-│   ├── chat-message.tsx         # 消息气泡
-│   ├── upload-panel.tsx         # 上传面板
-│   ├── doc-list.tsx             # 文档列表
-│   ├── source-card.tsx          # 引用来源卡片
-│   └── ui/                      # shadcn/ui 组件
+│   ├── chat-panel.tsx            # 对话面板
+│   ├── chat-message.tsx          # 消息气泡
+│   ├── upload-panel.tsx          # 上传面板（含扫描知识库入口）
+│   ├── doc-list.tsx              # 文档列表
+│   ├── source-card.tsx           # 引用来源卡片
+│   └── ui/                       # shadcn/ui 组件
 └── lib/
-    ├── config.ts                # 配置
-    ├── types.ts                 # 类型定义
-    ├── utils.ts                 # 工具函数
-    ├── api-client.ts            # 客户端 axios 实例（fetch adapter）
-    ├── server-api.ts            # 服务端 axios 实例（Ollama 调用）
-    ├── rag-service.ts           # 统一 API 封装层
-    ├── chroma-client.ts         # Chroma 客户端
-    ├── ollama-client.ts         # Ollama 客户端
-    ├── ingestion.ts             # 文档摄入管道
-    ├── rag-chain.ts             # RAG 问答管道
-    └── prompt.ts                # 提示词模板
+    ├── config.ts                 # 配置
+    ├── types.ts                  # 类型定义
+    ├── utils.ts                  # 工具函数
+    ├── api-client.ts             # 客户端 axios 实例（fetch adapter）
+    ├── server-api.ts             # 服务端 axios 实例（Ollama 调用）
+    ├── rag-service.ts            # 统一 API 封装层
+    ├── chroma-client.ts          # Chroma 客户端
+    ├── ollama-client.ts          # Ollama 客户端
+    ├── ingestion.ts              # 文档摄入管道
+    ├── rag-chain.ts              # RAG 问答管道
+    └── prompt.ts                 # 提示词模板
 ```
 
 ## 系统架构
@@ -119,24 +126,24 @@ src/
 ┌───────────────────────────────────────────────────────────────────┐
 │                    Next.js 16 App Router (Server)                 │
 │                                                                   │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│  │ /api/health  │  │/api/documents│  │ /api/query   │          │
-│  │   健康检查    │  │  文档 CRUD   │  │  RAG 问答    │          │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘          │
-│         │                 │                  │                    │
-│         ▼                 ▼                  ▼                    │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│  │ollama-client │  │ ingestion.ts │  │ rag-chain.ts │          │
-│  │chroma-client │  │  文档摄入管道 │  │  RAG 管道    │          │
-│  │  健康探测    │  │  Loader →    │  │  Embedding → │          │
-│  │              │  │  Splitter →  │  │  检索 → LLM  │          │
-│  │              │  │  Embedding → │  │              │          │
-│  │              │  │  Chroma 写入 │  │              │          │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘          │
-│         │                 │                  │                    │
-│  server-api.ts (axios)    │                  │                    │
-│         │                 │                  │                    │
-└─────────┼─────────────────┼──────────────────┼────────────────────┘
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐│
+│  │ /api/health  │  │/api/documents│  │ /api/query   │  │/api/scan     ││
+│  │   健康检查    │  │  文档 CRUD   │  │  RAG 问答    │  │  知识库扫描   ││
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘│
+│         │                 │                  │                  │        │
+│         ▼                 ▼                  ▼                  ▼        │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐│
+│  │ollama-client │  │ ingestion.ts │  │ rag-chain.ts │  │ fs.readdir   ││
+│  │chroma-client │  │  文档摄入管道 │  │  RAG 管道    │  │  文件系统扫描 ││
+│  │  健康探测    │  │  Loader →    │  │  Embedding → │  │  → ingestion ││
+│  │              │  │  Splitter →  │  │  检索 → LLM  │  │              ││
+│  │              │  │  Embedding → │  │              │  │              ││
+│  │              │  │  Chroma 写入 │  │              │  │              ││
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └──────────────┘│
+│         │                 │                  │                          │
+│  server-api.ts (axios)    │                  │                          │
+│         │                 │                  │                          │
+└─────────┼─────────────────┼──────────────────┼──────────────────────────┘
           │                 │                  │
           ▼                 ▼                  ▼
 ┌───────────────────────────────────────────────────────────────────┐
@@ -162,18 +169,46 @@ src/
 | 层级 | 目录/文件 | 职责 |
 | --- | --- | --- |
 | **表示层** | `src/app/page.tsx` `src/components/` | 用户界面，左右双栏布局：对话区 + 文档管理区 |
-| **服务层** | `src/lib/rag-service.ts` | 统一封装 5 个 API 端点，类型安全的请求方法 |
+| **服务层** | `src/lib/rag-service.ts` | 统一封装 7 个 API 方法，类型安全的请求方法 |
 | **传输层** | `src/lib/api-client.ts` `src/lib/server-api.ts` | axios 实例：客户端 fetch adapter（支持 SSE 流）+ 服务端直接调用 |
-| **路由层** | `src/app/api/` | 4 个 API Route：health / documents / upload / query |
+| **路由层** | `src/app/api/` | 5 个 API Route：health / documents / upload / scan / query |
 | **业务层** | `src/lib/rag-chain.ts` `src/lib/ingestion.ts` | RAG 问答管道 + 文档摄入管道 |
 | **数据层** | `src/lib/chroma-client.ts` `src/lib/ollama-client.ts` | Chroma 向量库客户端 + Ollama 模型客户端 |
 | **外部服务** | Docker / Ollama | Chroma :8000 + Ollama :11434 |
 
 ### 关键数据流
 
-**文档摄入**: `文件上传 → Loader 解析 → TextSplitter 分块 → bge-m3 向量化 → Chroma 写入`
+**文档摄入 (三种方式)**:
+
+1. **拖拽上传**: `文件拖拽 → FormData 上传 → Loader 解析 → TextSplitter 分块 → bge-m3 向量化 → Chroma 写入`
+2. **知识库扫描**: `放入 knowledge-base/ → 点击扫描 → fs.readdir → 去重检测 → 逐个 Loader 解析 → TextSplitter 分块 → 向量化 → Chroma 写入`
+3. **启动自动扫描**: `项目启动 → 健康检查通过 → 自动扫描 knowledge-base/ → 增量入库`
 
 **智能问答**: `用户提问 → bge-m3 向量化 → Chroma 语义检索 (Top-K) → 构建 System Prompt → qwen3.5 流式生成 → SSE 返回`
+
+## 知识库文件夹使用
+
+`knowledge-base/` 是便捷的批量文档入库方式：
+
+### 使用步骤
+
+1. 将 PDF、MD、TXT、Docx 文档放入 `knowledge-base/` 目录
+2. 方式一：重启项目，启动时自动扫描入库
+3. 方式二：点击右侧面板「扫描知识库」按钮，手动增量摄入
+4. 已入库的文档会被自动跳过，不会重复摄入
+
+### UI 提示
+
+上传面板下方会显示 `knowledge-base/` 的完整路径，可直接选中复制到文件管理器。
+
+### 与拖拽上传的区别
+
+| | 拖拽上传 | 知识库扫描 |
+| --- | --- | --- |
+| 操作方式 | 浏览器拖入文件 | 文件管理器复制到文件夹 |
+| 批量能力 | 单文件 | 整个文件夹批量 |
+| 文件大小限制 | 20MB（HTTP 限制） | 无限制（文件系统直接读） |
+| 去重 | 无 | 自动跳过已有文档 |
 
 ## 配置说明
 

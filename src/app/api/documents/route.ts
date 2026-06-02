@@ -4,9 +4,11 @@ import path from "path";
 import fs from "fs";
 import { getCollection } from "@/lib/chroma-client";
 import { removeDocument } from "@/lib/ingestion";
+import { config } from "@/lib/config";
 import type { ApiResponse, DocumentRecord } from "@/lib/types";
 
 const UPLOAD_DIR = path.join(process.cwd(), "data", "uploads");
+const KNOWLEDGE_BASE_DIR = config.knowledgeBaseDir;
 
 /**
  * GET /api/documents
@@ -45,14 +47,26 @@ export async function GET() {
       }
     }
 
-    // 获取文件系统中的文件大小
-    const fileNames = fs.readdirSync(UPLOAD_DIR).filter((f) => !f.startsWith("."));
+    // 从多个来源获取文件系统中的文件大小
+    const searchDirs = [UPLOAD_DIR, KNOWLEDGE_BASE_DIR].filter((d) =>
+      fs.existsSync(d)
+    );
+
     for (const [fileName, doc] of docMap) {
-      const matchingFile = fileNames.find((f) => f.endsWith(path.extname(fileName)));
-      if (matchingFile) {
+      const ext = path.extname(fileName);
+      for (const dir of searchDirs) {
         try {
-          const stats = fs.statSync(path.join(UPLOAD_DIR, matchingFile));
-          doc.fileSize = stats.size;
+          const files = fs.readdirSync(dir).filter((f) => !f.startsWith("."));
+          const matchingFile = files.find(
+            (f) =>
+              f === fileName ||
+              (ext && f.endsWith(ext))
+          );
+          if (matchingFile) {
+            const stats = fs.statSync(path.join(dir, matchingFile));
+            doc.fileSize = stats.size;
+            break;
+          }
         } catch {
           // ignore
         }

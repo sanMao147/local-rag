@@ -1,14 +1,22 @@
 "use client";
 
 import { useState, useRef, DragEvent, ChangeEvent } from "react";
-import { Upload, Loader2, FileText, X } from "lucide-react";
+import { Upload, Loader2, FileText, X, FolderSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface UploadPanelProps {
   onUpload: (file: File) => Promise<void>;
+  onScan?: () => Promise<void>;
+  isScanning?: boolean;
+  knowledgeBasePath?: string;
 }
 
-export function UploadPanel({ onUpload }: UploadPanelProps) {
+export function UploadPanel({
+  onUpload,
+  onScan,
+  isScanning = false,
+  knowledgeBasePath,
+}: UploadPanelProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -158,6 +166,46 @@ export function UploadPanel({ onUpload }: UploadPanelProps) {
           </>
         )}
       </Button>
+
+      {/* 知识库路径提示 */}
+      {knowledgeBasePath && (
+        <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+          <p className="text-[11px] text-slate-500 font-medium mb-1">
+            知识库文件夹
+          </p>
+          <p
+            className="text-xs text-slate-600 font-mono break-all select-all cursor-pointer"
+            title="点击选中复制路径"
+          >
+            {knowledgeBasePath}
+          </p>
+          <p className="text-[11px] text-slate-400 mt-1.5">
+            将文档放入此文件夹，点击下方按钮扫描入库
+          </p>
+        </div>
+      )}
+
+      {/* 扫描知识库按钮 */}
+      {onScan && (
+        <Button
+          variant="outline"
+          className="w-full mt-3 border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-all rounded-xl"
+          disabled={isScanning}
+          onClick={onScan}
+        >
+          {isScanning ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              扫描中...
+            </>
+          ) : (
+            <>
+              <FolderSearch className="w-4 h-4 mr-2" />
+              扫描知识库
+            </>
+          )}
+        </Button>
+      )}
     </div>
   );
 }

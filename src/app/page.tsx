@@ -8,7 +8,7 @@ import { SourceCard } from "@/components/source-card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { generateMessageId } from "@/lib/utils";
-import { checkHealth, getDocuments, queryStream, uploadDocument, deleteDocument } from "@/lib/rag-service";
+import { checkHealth, getDocuments, queryStream, uploadDocument, deleteDocument, scanKnowledgeBase, getKnowledgeBasePath } from "@/lib/rag-service";
 import type { ChatMessage, DocumentRecord, SourceChunk } from "@/lib/types";
 import { Brain, FileText, Activity } from "lucide-react";
 
@@ -20,10 +20,13 @@ export default function Home() {
   const [docsLoading, setDocsLoading] = useState(true);
   const [chromaStatus, setChromaStatus] = useState<boolean | null>(null);
   const [ollamaStatus, setOllamaStatus] = useState<boolean | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [knowledgeBasePath, setKnowledgeBasePath] = useState<string>("");
   const assistantMessageRef = useRef<string>("");
   const currentSourcesRef = useRef<SourceChunk[]>([]);
+  const autoScanDoneRef = useRef(false);
 
-  // 健康检查
+  // 健康检查 + 获取知识库路径
   useEffect(() => {
     checkHealth()
       .then((data) => {
@@ -36,6 +39,14 @@ export default function Home() {
         setChromaStatus(false);
         setOllamaStatus(false);
       });
+
+    getKnowledgeBasePath()
+      .then((data) => {
+        if (data?.data?.path) {
+          setKnowledgeBasePath(data.data.path);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // 加载文档列表
@@ -56,6 +67,33 @@ export default function Home() {
   useEffect(() => {
     loadDocuments();
   }, [loadDocuments]);
+
+  // 首次启动自动扫描知识库
+  useEffect(() => {
+    if (
+      chromaStatus === true &&
+      ollamaStatus === true &&
+      !autoScanDoneRef.current
+    ) {
+      autoScanDoneRef.current = true;
+      setIsScanning(true);
+      scanKnowledgeBase()
+        .then((data) => {
+          if (data?.data) {
+            console.log(
+              `[AutoScan] 完成: 扫描 ${data.data.scanned}, 新增 ${data.data.ingested}, 跳过 ${data.data.skipped}`
+            );
+          }
+          loadDocuments();
+        })
+        .catch((err) => {
+          console.error("[AutoScan] 扫描失败:", err);
+        })
+        .finally(() => {
+          setIsScanning(false);
+        });
+    }
+  }, [chromaStatus, ollamaStatus, loadDocuments]);
 
   // 发送消息
   const handleSend = useCallback(
@@ -200,6 +238,24 @@ export default function Home() {
     [loadDocuments]
   );
 
+  // 手动扫描知识库
+  const handleScan = useCallback(async () => {
+    setIsScanning(true);
+    try {
+      const data = await scanKnowledgeBase();
+      if (data?.data) {
+        console.log(
+          `[Scan] 完成: 扫描 ${data.data.scanned}, 新增 ${data.data.ingested}, 跳过 ${data.data.skipped}`
+        );
+      }
+      await loadDocuments();
+    } catch (err) {
+      console.error("[Scan] 扫描失败:", err);
+    } finally {
+      setIsScanning(false);
+    }
+  }, [loadDocuments]);
+
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       {/* 顶部导航栏 */}
@@ -256,7 +312,12 @@ export default function Home() {
 
         {/* 右侧：文档管理区 (40%) */}
         <div className="flex-[2] min-w-0 flex flex-col gap-4 overflow-y-auto">
-          <UploadPanel onUpload={handleUpload} />
+          <UploadPanel
+            onUpload={handleUpload}
+            onScan={handleScan}
+            isScanning={isScanning}
+            knowledgeBasePath={knowledgeBasePath}
+          />
           <DocList
             documents={documents}
             isLoading={docsLoading}

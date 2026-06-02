@@ -56,3 +56,25 @@ export async function deleteDocument(filename: string) {
   );
   return res.data;
 }
+
+/** 扫描知识库 */
+export async function scanKnowledgeBase() {
+  const res = await apiClient.post<
+    ApiResponse<{
+      scanned: number;
+      ingested: number;
+      skipped: number;
+      errors: { filename: string; error: string }[];
+      results: UploadResult[];
+    }>
+  >("/api/documents/scan");
+  return res.data;
+}
+
+/** 获取知识库文件夹路径 */
+export async function getKnowledgeBasePath() {
+  const res = await apiClient.get<
+    ApiResponse<{ path: string }>
+  >("/api/knowledge-base/path");
+  return res.data;
+}

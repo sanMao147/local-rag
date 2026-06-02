@@ -36,6 +36,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# knowledge base documents (keep directory, ignore actual docs)
+knowledge-base/*
+!knowledge-base/.gitkeep
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

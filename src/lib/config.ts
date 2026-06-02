@@ -1,3 +1,5 @@
+import path from "path";
+
 /**
  * 统一配置对象
  * 所有环境变量在这里集中管理，提供默认值
@@ -26,6 +28,9 @@ export const config = {
 
   /** 检索 Top-K */
   topK: parseInt(process.env.TOP_K || "4", 10),
+
+  /** 知识库目录 (项目根目录下的 knowledge-base/ 文件夹) */
+  knowledgeBaseDir: path.join(process.cwd(), "knowledge-base"),
 
   /** 上传文件大小限制 (20MB) */
   maxFileSize: 20 * 1024 * 1024,
